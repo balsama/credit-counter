@@ -24,7 +24,7 @@ class CreditTimestampFinderTest extends TestCase
     {
         foreach ($this->issues as $testIssue) {
             $issueDom = new Dom();
-            $issueDom->loadFromFile('../sample-data/example-issue--' . $testIssue['issue number'] . '.html');
+            $issueDom->loadFromFile(__dir__ . '/../sample-data/example-issue--' . $testIssue['issue number'] . '.html');
 
             $timestamp = CreditTimestampFinder::getCreditTimestamp($issueDom);
             $creditDate = date('Y-m-d', $timestamp);

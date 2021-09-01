@@ -3,7 +3,6 @@
 namespace Balsama;
 
 use GuzzleHttp\Client;
-use GuzzleHttp\Psr7\Request;
 use PHPHtmlParser\Dom;
 
 class CreditTimestampFinder
@@ -13,9 +12,7 @@ class CreditTimestampFinder
     {
         $client = new Client();
         $url = 'https://www.drupal.org/node/' . $issueNumber;
-        $requestHeaders = ['User-Agent' => 'creditCounter/v1.0'];
-        $request = new Request('GET', $url, $requestHeaders);
-
+        $request = \Balsama\Request::getRequest($url);
         $issueDom = new Dom();
         $issueDom->loadFromUrl($url, null, $client, $request);
 

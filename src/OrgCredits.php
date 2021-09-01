@@ -3,7 +3,6 @@
 namespace Balsama;
 
 use GuzzleHttp\Client;
-use GuzzleHttp\Psr7\Request;
 use PHPHtmlParser\Dom;
 
 class OrgCredits
@@ -102,11 +101,7 @@ class OrgCredits
 
         echo "Getting page $this->page for $this->orgString \n";
         $url = "https://www.drupal.org/node/$this->orgId/issue-credits/3060?page=$this->page";
-
-        // The `creditCounter/v1.0` user agent is allow-listed by the DA so we don't get blocked by their bot
-        // detector.
-        $requestHeaders = ['User-Agent' => 'creditCounter/v1.0'];
-        $request = new Request('GET', $url, $requestHeaders);
+        $request = \Balsama\Request::getRequest($url);
         $orgDomSinglePage->loadFromUrl($url, null, $client, $request);
 
         $innerHtml = $orgDomSinglePage->innerHtml;

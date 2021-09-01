@@ -14,7 +14,7 @@ class OrgCreditsTest extends TestCase
     {
         $this->orgCredits = new OrgCredits('acquia', '1 july 2021', '26 june 2021');
         $this->exampleResponse = new Dom();
-        $this->exampleResponse->loadFromFile('../sample-data/example-response.html');
+        $this->exampleResponse->loadFromFile(__dir__ . '/../sample-data/example-response.html');
     }
 
     public function testFindIssuesUl()
