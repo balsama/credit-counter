@@ -1,3 +1,4 @@
-/data
+/data/
 /vendor
 /.idea
+.phpunit.result.cache

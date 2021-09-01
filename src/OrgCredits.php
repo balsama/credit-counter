@@ -9,22 +9,27 @@ use PHPHtmlParser\Dom;
 class OrgCredits
 {
 
-    private Dom $orgDomSinglePage;
     private $beforeTimestamp;
     private $afterTimestamp;
-    private $issues;
+    private $issues = [];
     private $issueCounts;
-    private $orgId;
+    private string $orgString;
+    private int $orgId;
     private string $ulSelector = '.view-id-issue_credit .view-content ul li';
     private int $page = 0;
 
-    public function __construct($org, $beforeDate = 'now', $afterDate = '2 days ago')
+    public function __construct(string $org, $beforeDate = '1 day ago', $afterDate = '8 days ago')
     {
+        $this->orgString = $org;
         $this->orgId = $this->getOrgId($org);
         $this->setTimestamps($beforeDate, $afterDate);
         $this->buildCountsArray();
-        $this->getPageDom(false);
-        $this->parsePageIssues();
+    }
+
+    public function run()
+    {
+        $orgDomSinglePage = $this->getPageDom();
+        $this->parsePageIssues($orgDomSinglePage);
     }
 
     public function getIssues()
@@ -37,17 +42,18 @@ class OrgCredits
         return Helpers::includeArrayKeysInArray($this->issueCounts);
     }
 
-    private function parsePageIssues()
+    private function parsePageIssues($orgDomSinglePage, $noContinue = false)
     {
-        $issuesUl = $this->orgDomSinglePage->find($this->ulSelector);
+        $issuesUl = $this->findIssuesUl($orgDomSinglePage);
 
         foreach ($issuesUl as $issueListItem) {
             $issueNumber = $this->getIssueNumberFromLi($issueListItem);
-            $creditTimestamp = $this->getCreditTimestamp($issueNumber, false);
+            $issueDom = CreditTimestampFinder::getIssueDom($issueNumber);
+            $creditTimestamp = CreditTimestampFinder::getCreditTimestamp($issueDom);
             if (!$creditTimestamp) {
                 $creditTimestamp = $this->getIssueTimestampFromLi($issueListItem);
             }
-            $listingTimestamp =$this->getIssueTimestampFromLi($issueListItem);
+            $listingTimestamp = $this->getIssueTimestampFromLi($issueListItem);
 
             if ($this->isTimestampBeforeWindow($listingTimestamp)) {
                 // Exit out completely.
@@ -73,32 +79,43 @@ class OrgCredits
             $this->issueCounts[$date]++;
         }
 
-        $this->page++;
-        $this->getPageDom();
-        $this->parsePageIssues();
+        if ($noContinue) {
+            return;
+        }
+        $this->increment();
     }
 
-    public function getPageDom($mock = false)
+    private function increment()
     {
-        $this->orgDomSinglePage = new Dom();
-        if ($mock) {
-            $this->orgDomSinglePage->loadFromFile('./tests/data/example-response.html');
-        }
-        else {
-            $client = new Client();
-            echo "Getting page $this->page \n";
-            $url = "https://www.drupal.org/node/$this->orgId/issue-credits/3060?page=$this->page";
-            // The `creditCounter/v1.0` user agent is allow-listed by the DA so we don't get blocked by their bot
-            // detector.
-            $requestHeaders = ['User-Agent' => 'creditCounter/v1.0'];
-            $request = new Request('GET', $url, $requestHeaders);
-            $this->orgDomSinglePage->loadFromUrl($url, null, $client, $request);
-        }
+        $this->page++;
+        $orgDomSignglePage = $this->getPageDom();
+        $this->parsePageIssues($orgDomSignglePage);
+    }
 
-        $innerHtml = $this->orgDomSinglePage->innerHtml;
-        if (strpos($innerHtml, 'You have been blocked because we believe you are using automation tools to browse the website.')  !== false) {
+    /**
+     * @throws \Exception
+     */
+    public function getPageDom(): Dom
+    {
+        $orgDomSinglePage = new Dom();
+        $client = new Client();
+
+        echo "Getting page $this->page for $this->orgString \n";
+        $url = "https://www.drupal.org/node/$this->orgId/issue-credits/3060?page=$this->page";
+
+        // The `creditCounter/v1.0` user agent is allow-listed by the DA so we don't get blocked by their bot
+        // detector.
+        $requestHeaders = ['User-Agent' => 'creditCounter/v1.0'];
+        $request = new Request('GET', $url, $requestHeaders);
+        $orgDomSinglePage->loadFromUrl($url, null, $client, $request);
+
+        $innerHtml = $orgDomSinglePage->innerHtml;
+        $errorString = 'You have been blocked because we believe you are using automation tools to browse the website.';
+        if (strpos($innerHtml, $errorString)  !== false) {
             throw new \Exception('Blocked!');
         }
+
+        return $orgDomSinglePage;
     }
 
     private function setTimestamps($beforeDate, $afterDate)
@@ -125,7 +142,7 @@ class OrgCredits
         return $orgs[$orgName];
     }
 
-    private function getIssueNumberFromLi(Dom\Node\HtmlNode $issueListItem)
+    public function getIssueNumberFromLi(Dom\Node\HtmlNode $issueListItem)
     {
         $issueLink = $issueListItem->find('.views-field-title .field-content a');
         $issueHrefParts = explode('/', $issueLink->getAttribute('href'));
@@ -146,56 +163,12 @@ class OrgCredits
             // If the issue was credited < 24 hours ago, the output is slightly different.
             $changedAgoText = $changedAgo->innerHtml();
             $timestamp = strtotime($changedAgoText . ' ago');
-        }
-        else {
+        } else {
             $dateText = substr($changed->innerHtml(), 0, -13);
             $timestamp = strtotime($dateText);
         }
 
         return $timestamp;
-    }
-
-    /**
-     * Tries to determine when credit was given based on:
-     *   1. The date of the last commit comment on the issue
-     *   2. When an issue was marked fixed (this case is used when no commit comment found. E.g. for meeting credits)
-     */
-    private function getCreditTimestamp($issueNumber, $mock = false)
-    {
-        $client = new Client();
-        $url = 'https://www.drupal.org/node/' . $issueNumber;
-        $requestHeaders = ['User-Agent' => 'creditCounter/v1.0'];
-        $request = new Request('GET', $url, $requestHeaders);
-
-        $issue = new Dom();
-        if ($mock) {
-            $issue->loadFromFile('./tests/data/example-issue-commit.html');
-        }
-        else {
-            $issue->loadFromUrl($url, null, $client, $request);
-        }
-
-        // First, look for a commit message.
-        $commitMessages = $issue->find('.comment.system-message.committed');
-        if ($commitMessages->count()) {
-            $commitMessagesArray = $commitMessages->toArray();
-            $lastCommitMessage = end($commitMessagesArray);
-            /* @var $lastCommitMessage \PHPHtmlParser\Dom\Node\HtmlNode */
-            $timestamp = strtotime($lastCommitMessage->find('time')->getAttribute('datetime'));
-            return $timestamp;
-        }
-
-        // If we don't find a commit message, just look for when it was marked fixed.
-        $nodeChanges = $issue->find('.nodechanges-new');
-        foreach ($nodeChanges as $nodeChange) {
-            /* @var $nodeChange \PHPHtmlParser\Dom\Node\HtmlNode */
-            if ($nodeChange->innerHtml == '» Fixed') {
-                $timestamp = strtotime($nodeChange->getParent()->getParent()->getParent()->getParent()->getParent()->getParent()->getParent()->getParent()->find('time')->getAttribute('datetime'));
-                return $timestamp;
-            }
-        }
-
-        return 0;
     }
 
     private function isTimestampAfterWindow($timestamp)
@@ -227,7 +200,10 @@ class OrgCredits
         foreach ($period as $date) {
             $this->issueCounts[$date->format('Y-m-d')] = 0;
         }
-
     }
 
+    public function findIssuesUl($orgDomSinglePage)
+    {
+        return $orgDomSinglePage->find($this->ulSelector);
+    }
 }

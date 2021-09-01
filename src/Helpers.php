@@ -74,5 +74,4 @@ class Helpers
         }
         fclose($fp);
     }
-
 }
