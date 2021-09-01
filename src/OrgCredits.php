@@ -187,11 +187,8 @@ class OrgCredits
         $start->setTimestamp($this->afterTimestamp);
         $end = new \DateTime();
         $end->setTimestamp($this->beforeTimestamp);
-        $period = new \DatePeriod(
-            $start,
-            new \DateInterval('P1D'),
-            $end
-        );
+        $interval = new \DateInterval('P1D');
+        $period = new \DatePeriod($start, $interval, $end);
         foreach ($period as $date) {
             $this->issueCounts[$date->format('Y-m-d')] = 0;
         }
