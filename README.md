@@ -6,10 +6,13 @@ Counts the number of credits an org earned over a given time period.
 2. run `composer install`
 3. See `/scripts` for examples. E.g., run:
   ```bash
-  $ php ./scripts/get-orgs.php
+  $ php ./scripts/get-orgs-credits.php
   ```
 
-More info:
+**Note:**  
+You'll need the `CREDIT_COUNTER_USER_AGENT` env variable set to prevent the DA's bot detector from blocking these requests.
+
+**More info:**
 ```php
 <?php
 $credits = new Balsama\OrgCredits('acquia', '1 july 2021', '30 june 2020');
