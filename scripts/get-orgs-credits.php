@@ -32,7 +32,7 @@ foreach ($orgs as $org) {
     Helpers::csv(
         ['issue - ' . $org, 'timestamp', 'date'],
         $issues,
-        "$org--issues--last-7-days--$generated.csv"
+        "$org--issues--last-7-days--generated-$generated.csv"
     );
     echo "Done with $org\n";
 }
