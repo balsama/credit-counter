@@ -20,19 +20,19 @@ $orgs = [
 
 $generated = date('Y-m-d G:i:s');
 foreach ($orgs as $org) {
-    $credits = new OrgCredits($org, '1 day ago', '9 days ago');
+    $credits = new OrgCredits($org, '1 day ago', '30 june 2021');
     $credits->run();
     $issueCounts = $credits->getIssueCountsByDay();
     $issues = $credits->getIssues();
     Helpers::csv(
         ['date', $org],
         $issueCounts,
-        "$org--counts--last-7-days--generated-$generated.csv"
+        "$org--counts--july-oct-2021--generated-$generated.csv"
     );
     Helpers::csv(
         ['issue - ' . $org, 'timestamp', 'date'],
         $issues,
-        "$org--issues--last-7-days--generated-$generated.csv"
+        "$org--issues--july-oct-2021--generated-$generated.csv"
     );
     echo "Done with $org\n";
 }

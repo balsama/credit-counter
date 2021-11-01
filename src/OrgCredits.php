@@ -16,6 +16,32 @@ class OrgCredits
     private int $orgId;
     private string $ulSelector = '.view-id-issue_credit .view-content ul li';
     private int $page = 0;
+    private int $currentProjectId;
+
+    /**
+     * Projects that are weighted the same as core - including core. This is the list of projects which will be counted.
+     */
+    private const PROJECTS = [
+        'core' => 3060,
+        'ckeditor 5' => 3159840,
+        'automatic updates' => 2997874,
+        'project browser' => 1143512,
+        'decoupled menus' => 3181806,
+        'accessible autocomplete' => 3196355,
+        'once' => 3195030,
+    ];
+    private const ORGANIZATIONS = [
+        'acquia' => 1204416,
+        'third & grove' => 2373279,
+        'opensense' => 2300801,
+        'ci&t' => 1530378,
+        'previousnext' => 1758226,
+        'qed42' => 2149203,
+        'lullabot' => 1124040,
+        'mediacurrent' => 1125004,
+        'acro media' => 1912292,
+        'tag1' => 1762646,
+    ];
 
     public function __construct(string $org, $beforeDate = '1 day ago', $afterDate = '8 days ago')
     {
@@ -27,8 +53,11 @@ class OrgCredits
 
     public function run()
     {
-        $orgDomSinglePage = $this->getPageDom();
-        $this->parsePageIssues($orgDomSinglePage);
+        foreach (self::PROJECTS as $project => $projectId) {
+            $this->currentProjectId = $projectId;
+            $orgDomSinglePage = $this->getPageDom();
+            $this->parsePageIssues($orgDomSinglePage);
+        }
     }
 
     public function getIssues()
@@ -44,6 +73,9 @@ class OrgCredits
     private function parsePageIssues($orgDomSinglePage, $noContinue = false)
     {
         $issuesUl = $this->findIssuesUl($orgDomSinglePage);
+        if (!$issuesUl->count()) {
+            return;
+        }
 
         foreach ($issuesUl as $issueListItem) {
             $issueNumber = $this->getIssueNumberFromLi($issueListItem);
@@ -56,6 +88,8 @@ class OrgCredits
 
             if ($this->isTimestampBeforeWindow($listingTimestamp)) {
                 // Exit out completely.
+                unset($this->currentProjectId);
+                $this->page = 0;
                 return;
             }
             if ($this->isTimestampBeforeWindow($creditTimestamp)) {
@@ -91,16 +125,13 @@ class OrgCredits
         $this->parsePageIssues($orgDomSignglePage);
     }
 
-    /**
-     * @throws \Exception
-     */
     public function getPageDom(): Dom
     {
         $orgDomSinglePage = new Dom();
         $client = new Client();
 
-        echo "Getting page $this->page for $this->orgString \n";
-        $url = "https://www.drupal.org/node/$this->orgId/issue-credits/3060?page=$this->page";
+        echo "Getting page $this->page for $this->orgString on $this->currentProjectId project. \n";
+        $url = "https://www.drupal.org/node/$this->orgId/issue-credits/$this->currentProjectId?page=$this->page";
         $request = \Balsama\Request::getRequest($url);
         $orgDomSinglePage->loadFromUrl($url, null, $client, $request);
 
@@ -121,20 +152,13 @@ class OrgCredits
 
     private function getOrgId($orgName)
     {
-        $orgs = [
-            'acquia' => 1204416,
-            'third & grove' => 2373279,
-            'opensense' => 2300801,
-            'ci&t' => 1530378,
-            'previousnext' => 1758226,
-            'qed42' => 2149203,
-            'lullabot' => 1124040,
-            'mediacurrent' => 1125004,
-            'acro media' => 1912292,
-            'tag1' => 1762646,
+        return self::ORGANIZATIONS[$orgName];
+    }
 
-        ];
-        return $orgs[$orgName];
+    private function getProjectFromNid($nid)
+    {
+        $projects = array_reverse(self::PROJECTS, true);
+        return $projects[$nid];
     }
 
     public function getIssueNumberFromLi(Dom\Node\HtmlNode $issueListItem)
