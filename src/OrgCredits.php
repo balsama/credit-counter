@@ -17,6 +17,7 @@ class OrgCredits
     private string $ulSelector = '.view-id-issue_credit .view-content ul li';
     private int $page = 0;
     private int $currentProjectId;
+    private bool $coreOnly = false;
 
     /**
      * Projects that are weighted the same as core - including core. This is the list of projects which will be counted.
@@ -54,6 +55,11 @@ class OrgCredits
     public function run()
     {
         foreach (self::PROJECTS as $project => $projectId) {
+            if ($this->coreOnly) {
+                if ($projectId !== 3060) {
+                    continue;
+                }
+            }
             $this->currentProjectId = $projectId;
             $orgDomSinglePage = $this->getPageDom();
             $this->parsePageIssues($orgDomSinglePage);
@@ -138,7 +144,11 @@ class OrgCredits
         $innerHtml = $orgDomSinglePage->innerHtml;
         $errorString = 'You have been blocked because we believe you are using automation tools to browse the website.';
         if (strpos($innerHtml, $errorString)  !== false) {
-            throw new \Exception('Blocked!');
+            $userAgent = getenv('CREDIT_COUNTER_USER_AGENT') ?: null;
+            if (!$userAgent) {
+                throw new \Exception('Blocked by DA bot detector. Ensure that the `CREDIT_COUNTER_USER_AGENT` environment variable is properly set.');
+            }
+            throw new \Exception('Blocked by DA bot detector. `CREDIT_COUNTER_USER_AGENT` is currently set to ' . $userAgent . '. Ensure that is correct.');
         }
 
         return $orgDomSinglePage;
@@ -221,5 +231,10 @@ class OrgCredits
     public function findIssuesUl($orgDomSinglePage)
     {
         return $orgDomSinglePage->find($this->ulSelector);
+    }
+
+    public function toggleCoreOnly($bool)
+    {
+        $this->coreOnly = $bool;
     }
 }
